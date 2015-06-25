@@ -23,17 +23,6 @@
 #define HEADER_ACCEPT     "Accept: text/html"
 #define HEADER_USER_AGENT "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.125 Safari/537.36"
 
-// We need some colors!!!
-#define CLR_0 "\x1b[0m"
-#define CLR_1 "\x1b[31;1m"
-#define CLR_2 "\x1b[32;1m"
-#define CLR_3 "\x1b[33;1m"
-#define CLR_4 "\x1b[34;1m"
-#define CLR_5 "\x1b[35;1m"
-#define CLR_6 "\x1b[36;1m"
-#define CLR_7 "\x1b[37;1m"
-#define CLR_8 "\x1b[38;1m"
-
 // We need some fine defs for the URL segments
 #define LOTTO_URI_PREFFIX "http://pcso-lotto-results-and-statistics.webnatin.com/"
 #define LOTTO_URI_SUFFIX  "results.asp"
@@ -65,7 +54,20 @@ std::string trim(std::string string) {
  * This function actually parses the results then stores them all in a CSV
  * that you can open in a spreadsheet :)
  */
-void get_results(std::string type, std::string color) {
+void get_results(std::string type, int color) {
+	// We need some colors!!!
+	const std::string colors[] = {
+		"\x1b[0m",
+		"\x1b[31;1m",
+		"\x1b[32;1m",
+		"\x1b[33;1m",
+		"\x1b[34;1m",
+		"\x1b[35;1m",
+		"\x1b[36;1m",
+		"\x1b[37;1m",
+		"\x1b[38;1m",
+	};
+
 	// We need a file name...
 	std::string file_name("results/" + type + ".csv");
 
@@ -117,7 +119,7 @@ void get_results(std::string type, std::string color) {
 	auto amounts = root->find("//table/tr[position() > 1]/td[5]/text()");
 	auto winners = root->find("//table/tr[position() > 1]/td[6]/text()");
 
-	std::cout << color << "\n" ;
+	std::cout << colors[color];
 	std::cout << "games"   << ": " << games.size()    << ", ";
 	std::cout << "dates"   << ": " << dates.size()    << ", ";
 	std::cout << "results" << ": " << results.size()  << ", ";
@@ -136,7 +138,8 @@ void get_results(std::string type, std::string color) {
 		file << std::endl;
 		std::cout << "●";
 	}
-	std::cout << CLR_0 ;
+	std::cout << colors[0];
+	std::cout << std::endl;
 
 	// House keeping. Can we come in? :P
 	delete root;
@@ -164,15 +167,12 @@ int main(int argc, char *argv[])
 		"6-d",
 	};
 
-	// Packing up colors
-	std::string colors[] = {CLR_1,CLR_2,CLR_3,CLR_4,CLR_5,CLR_6,CLR_7,CLR_8};
-
 	// Where do we store our threads? LOL!
 	std::thread threads[result_types_count];
 
 	// Start our threads!
 	for (int i = 0; i < result_types_count; ++i) {
-		threads[i] = std::thread(std::bind(get_results, result_types[i], colors[i]));
+		threads[i] = std::thread(std::bind(get_results, result_types[i], i));
 	}
 
 	// What did we get from the threads doc?
