@@ -65,7 +65,7 @@ std::string trim(std::string string) {
  * This function actually parses the results then stores them all in a CSV
  * that you can open in a spreadsheet :)
  */
-void get_results(std::string type) {
+void get_results(std::string type, std::string color) {
 	// We need a file name...
 	std::string file_name("results/" + type + ".csv");
 
@@ -117,6 +117,7 @@ void get_results(std::string type) {
 	auto amounts = root->find("//table/tr[position() > 1]/td[5]/text()");
 	auto winners = root->find("//table/tr[position() > 1]/td[6]/text()");
 
+	std::cout << color << "\n" ;
 	std::cout << "games"   << ": " << games.size()    << ", ";
 	std::cout << "dates"   << ": " << dates.size()    << ", ";
 	std::cout << "results" << ": " << results.size()  << ", ";
@@ -133,7 +134,9 @@ void get_results(std::string type) {
 		file << "\"" << trim((std::string) dynamic_cast<xmlpp::ContentNode*>(amounts[i])->get_content()) << "\",";
 		file << "\"" << trim((std::string) dynamic_cast<xmlpp::ContentNode*>(winners[i])->get_content()) << "\"";
 		file << std::endl;
+		std::cout << "●";
 	}
+	std::cout << CLR_0 ;
 
 	// House keeping. Can we come in? :P
 	delete root;
@@ -161,12 +164,15 @@ int main(int argc, char *argv[])
 		"6-d",
 	};
 
+	// Packing up colors
+	std::string colors[] = {CLR_1,CLR_2,CLR_3,CLR_4,CLR_5,CLR_6,CLR_7,CLR_8};
+
 	// Where do we store our threads? LOL!
 	std::thread threads[result_types_count];
 
 	// Start our threads!
 	for (int i = 0; i < result_types_count; ++i) {
-		threads[i] = std::thread(std::bind(get_results, result_types[i]));
+		threads[i] = std::thread(std::bind(get_results, result_types[i], colors[i]));
 	}
 
 	// What did we get from the threads doc?
