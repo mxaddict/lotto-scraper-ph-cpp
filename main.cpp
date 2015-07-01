@@ -15,17 +15,10 @@
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <cstdlib>
 
 // Back to the threads
 #include <thread>
-
-// This is just for sakes
-#define HEADER_ACCEPT     "Accept: text/html"
-#define HEADER_USER_AGENT "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/43.0.2357.125 Safari/537.36"
-
-// We need some fine defs for the URL segments
-#define LOTTO_URI_PREFFIX "http://pcso-lotto-results-and-statistics.webnatin.com/"
-#define LOTTO_URI_SUFFIX  "results.asp"
 
 /**
  * This function gives back a timestamp...
@@ -78,7 +71,77 @@ std::string trim(std::string string) {
  * This function actually parses the results then stores them all in a CSV
  * that you can open in a spreadsheet :)
  */
-void get_results(std::string type, int color) {
+void get_results(std::string result_url, std::ofstream* file, std::string color) {
+	// we need a string stream...
+	std::ostringstream response_stream;
+
+	// We need this magic snip to do cleanup
+	curlpp::Cleanup cleanup;
+
+	// We need a curl request instance
+	curlpp::Easy request;
+
+	// We need some details about the request!
+	request.setOpt<curlpp::options::Url>(result_url);
+	request.setOpt<curlpp::options::Encoding>("gzip, deflate");
+	request.setOpt<curlpp::options::WriteStream>(&response_stream);
+
+	// Run the request
+	request.perform();
+
+	// Parse HTML and create a DOM tree
+	xmlDoc *xml_document = htmlReadDoc((xmlChar*)response_stream.str().c_str(), NULL, NULL, HTML_PARSE_RECOVER | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING);
+
+	// Encapsulate raw libxml document in a libxml++ wrapper
+	auto *xml_root = xmlDocGetRootElement(xml_document);
+	auto *xmlpp_root = new xmlpp::Element(xml_root);
+
+	// get the rows
+	auto results        = xmlpp_root->find("//table/tr[position() > 1]/td/b/text()");
+	auto result_details = xmlpp_root->find("//table/tr[position() > 1]/td/text()");
+
+	// loop the results
+	for (int i = 0; i < results.size(); i++) {
+		// we need a string stream...
+		std::ostringstream result_stream;
+
+		// Now add the results for the result
+		result_stream << "\"" << trim(dynamic_cast<xmlpp::ContentNode*>(result_details[i*7+0])->get_content()) << "\",";
+		result_stream << "\"" << trim(dynamic_cast<xmlpp::ContentNode*>(result_details[i*7+2])->get_content()) << "\",";
+		result_stream << "\"" << trim(dynamic_cast<xmlpp::ContentNode*>(result_details[i*7+4])->get_content()) << "\",";
+		result_stream << "\"" << trim(dynamic_cast<xmlpp::ContentNode*>(result_details[i*7+5])->get_content()) << "\",";
+		result_stream << "\"" << trim(dynamic_cast<xmlpp::ContentNode*>(result_details[i*7+6])->get_content()) << "\",";
+		result_stream << std::endl;
+
+		// Write our result line to the file stream
+		*file  << result_stream.str().c_str();
+
+		// Add our magical DOT...
+		std::cout << color << "●";
+	}
+
+	// House keeping. Can we come in? :P
+	delete xmlpp_root;
+	xmlFreeDoc(xml_document);
+}
+
+/**
+ * This is MAIN, if you don't know it, go study CPP
+ */
+int main(int argc, char *argv[])
+{
+	// What type of results do we need?
+	const std::string result_types[] = {
+		"2-d",
+		"3-d",
+		"4-d",
+		"6-42",
+		"6-45",
+		"6-49",
+		"6-55",
+		"6-d",
+	};
+
 	// We need some colors!!!
 	const std::string colors[] = {
 		"\x1b[0m",
@@ -92,111 +155,34 @@ void get_results(std::string type, int color) {
 		"\x1b[38;1m",
 	};
 
-	// We need a file name...
-	std::string file_name("results/" + type + ".csv");
+	// We need some fine consts for the URL segments
+	const std::string url_preffix = "http://pcso-lotto-results-and-statistics.webnatin.com/";
+	const std::string url_suffix  = "results.asp";
 
-	// Wee need a result URL...
-	std::string result_url(LOTTO_URI_PREFFIX + type + LOTTO_URI_SUFFIX);
+	// How many result types do we run?
+	const int result_types_count = sizeof(result_types) / sizeof(std::string);
 
-	// We need to get a handle on the file...
+	// Where do we store our threads? LOL!
+	std::thread threads[result_types_count];
+
+	// Where to put the results?
+	const std::string file_name("results/all.csv");
+
+	// Open the file handle to the results file...
 	std::ofstream file(file_name);
 
 	// Check if we have opened the file...
 	if (!file.is_open()) {
 		debug("Error opening \"" + file_name + "\"");
-		return;
+		return EXIT_FAILURE;
 	}
-
-	// We need a curl request instance
-	curlpp::Easy request;
-
-	// Specify the URL
-	request.setOpt(curlpp::options::Url(result_url));
-
-	// Specify some headers
-	std::list<std::string> headers;
-	headers.push_back(HEADER_ACCEPT);
-	headers.push_back(HEADER_USER_AGENT);
-	request.setOpt(new curlpp::options::HttpHeader(headers));
-	request.setOpt(new curlpp::options::FollowLocation(true));
-	request.setOpt(new curlpp::options::Encoding("gzip"));
-
-	// we need a string stream...
-	std::ostringstream str_stream;
-
-	// Configure curlpp to use stream
-	request.setOpt(new curlpp::options::WriteStream(&str_stream));
-
-	// Collect response
-	request.perform();
-
-	// Where do we store the body?
-	std::string body = str_stream.str();
-
-	// Parse HTML and create a DOM tree
-	xmlDoc *doc = htmlReadDoc((xmlChar*)body.c_str(), NULL, NULL, HTML_PARSE_RECOVER | HTML_PARSE_NOERROR | HTML_PARSE_NOWARNING);
-
-	// Encapsulate raw libxml document in a libxml++ wrapper
-	auto *r = xmlDocGetRootElement(doc);
-	auto *root = new xmlpp::Element(r);
-
-	// get the rows
-	auto games   = root->find("//table/tr[position() > 1]/td[1]/text()");
-	auto dates   = root->find("//table/tr[position() > 1]/td[3]/text()");
-	auto results = root->find("//table/tr[position() > 1]/td[4]/b/text()");
-	auto amounts = root->find("//table/tr[position() > 1]/td[5]/text()");
-	auto winners = root->find("//table/tr[position() > 1]/td[6]/text()");
 
 	// Added the header to the file...
 	file << "\"Game\",\"Date\",\"Result\",\"Amount\",\"Winners\"" << std::endl;
 
-	// loop the results
-	for (int i = 0; i < games.size(); ++i) {
-		// Now add the results for the result
-		file << "\"" << trim((std::string) dynamic_cast<xmlpp::ContentNode*>(games[i])->get_content())   << "\",";
-		file << "\"" << trim((std::string) dynamic_cast<xmlpp::ContentNode*>(dates[i])->get_content())   << "\",";
-		file << "\"" << trim((std::string) dynamic_cast<xmlpp::ContentNode*>(results[i])->get_content()) << "\",";
-		file << "\"" << trim((std::string) dynamic_cast<xmlpp::ContentNode*>(amounts[i])->get_content()) << "\",";
-		file << "\"" << trim((std::string) dynamic_cast<xmlpp::ContentNode*>(winners[i])->get_content()) << "\"";
-		file << std::endl;
-
-		// Add our magical DOT...
-		std::cout << colors[color];
-		std::cout << "●";
-	}
-
-	// House keeping. Can we come in? :P
-	delete root;
-	xmlFreeDoc(doc);
-	file.close();
-}
-
-/**
- * This is MAIN, if you don't know it, go study CPP
- */
-int main(int argc, char *argv[])
-{
-	// How many result types do we run?
-	int result_types_count = 8;
-
-	// What type of results do we need?
-	std::string result_types[] = {
-		"2-d",
-		"3-d",
-		"4-d",
-		"6-42",
-		"6-45",
-		"6-49",
-		"6-55",
-		"6-d",
-	};
-
-	// Where do we store our threads? LOL!
-	std::thread threads[result_types_count];
-
 	// Start our threads!
 	for (int i = 0; i < result_types_count; ++i) {
-		threads[i] = std::thread(std::bind(get_results, result_types[i], i));
+		threads[i] = std::thread(std::bind(get_results, url_preffix + result_types[i] + url_suffix, &file, colors[i]));
 	}
 
 	// What did we get from the threads doc?
@@ -205,6 +191,13 @@ int main(int argc, char *argv[])
 		threads[i].join();
 	}
 
+	// Close the file handle
+	file.close();
+
+	// Add a newline at the end of the run... cause it breaks anything running
+	// after our script... LOL
+	std::cout << std::endl << colors[0];
+
 	// Wow!
-	return 0;
+	return EXIT_SUCCESS;
 }
