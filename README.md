@@ -4,6 +4,9 @@
 ```shell
 # Run this to install the requirements on a Debian/Ubuntu based system
 sudo apt-get install libboost-all-dev libcurl4-openssl-dev libcurlpp-dev libxml++2.6-dev g++ -y
+
+# Run this to install the requirements on a Windows/Babun/Cygwin/Pact based system
+pact install libboost-devel libcurl-devel libxml++2.6-devel gcc-core gcc-g++
 ```
 
 ## Building
