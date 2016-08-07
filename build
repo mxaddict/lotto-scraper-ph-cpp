@@ -1,2 +1,2 @@
 #!/bin/sh
-g++ main.cpp -L"/usr/lib/x86_64-linux-gnu/" -lboost_system -lpthread -lcurlpp -lcurl -g -pg `xml2-config --cflags --libs` `pkg-config libxml++-2.6 --cflags --libs` -std=c++14 -o phlotto
+g++ -Wall -Wextra main.cpp -L"/usr/lib/x86_64-linux-gnu/" -lboost_system -lpthread -lcurlpp -lcurl -g -pg `xml2-config --cflags --libs` `pkg-config libxml++-2.6 --cflags --libs` -std=c++14 -o phlotto
